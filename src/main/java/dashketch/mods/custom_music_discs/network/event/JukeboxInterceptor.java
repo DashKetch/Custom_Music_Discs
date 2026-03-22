@@ -2,6 +2,7 @@ package dashketch.mods.custom_music_discs.network.event;
 
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.neoforged.neoforge.event.level.BlockEvent;
 import org.essentials.custom_background_music.AudioManager; // Importing the other mod's class
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -104,6 +105,16 @@ public class JukeboxInterceptor {
             //2:let them know they can't use it for Jukebox discs
             Minecraft.getInstance().player.displayClientMessage(
                     Component.literal("§cManual controls disabled for Jukebox discs!"), true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onBlockBreak(BlockEvent.BreakEvent event) {
+        // If the broken block is a Jukebox, stop the music on the client
+        if (event.getState().is(Blocks.JUKEBOX)) {
+            if (event.getLevel().isClientSide()) {
+                AudioManager.getInstance().stop();
+            }
         }
     }
 }

@@ -123,7 +123,7 @@ dependencies {
     // For more info:
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
-    implementation "maven.modrinth:VAaG3u57:KqQs6BSv"
+    implementation "maven.modrinth:VAaG3u57:arl62ul7"
 
     // JLayer for compilation and runtime
     implementation "javazoom:jlayer:1.0.1"
