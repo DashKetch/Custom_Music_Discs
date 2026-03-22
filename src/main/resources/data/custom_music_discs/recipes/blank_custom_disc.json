@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    { "item": "minecraft:disc_fragment" },
+    { "item": "minecraft:disc_fragment" },
+    { "item": "minecraft:disc_fragment" },
+    { "item": "minecraft:disc_fragment" },
+    { "item": "minecraft:water_bottle" }
+  ],
+  "result": {
+    "item": "custom_music_discs:blank_custom_disc",
+    "count": 2
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "Z#Z",
+    "#X#",
+    "#Y#"
+  ],
+  "key": {
+    "#": { "item": "minecraft:iron_ingot" },
+    "X": { "item": "minecraft:diamond" },
+    "Y": { "item": "minecraft:redstone_block" },
+    "z": { "item": "minecraft:iron_nugget" }
+  },
+  "result": {
+    "item": "custom_music_discs:disc_burner",
+    "count": 1
+  }
+}
