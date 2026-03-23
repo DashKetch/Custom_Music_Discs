@@ -1,6 +1,6 @@
 {
   "type": "minecraft:crafting_shaped",
-  "category": "misc",
+  "category": "equipment",
   "key": {
     "#": {
       "item": "minecraft:iron_ingot"
@@ -22,6 +22,6 @@
   ],
   "result": {
     "count": 1,
-    "id": "minecraft:spyglass"
+    "id": "custom_music_discs:disc_burner"
   }
 }
