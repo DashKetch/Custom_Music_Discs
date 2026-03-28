@@ -54,7 +54,7 @@ public class JukeboxAudioEngine {
     }
 
     public void setVolume(float targetVolume) {
-        this.volume = Math.max(0.0f, Math.min(1.0f, targetVolume));
+        this.volume = Math.clamp(targetVolume, 0.0f, 1.0f);
         if (player != null) {
             try {
                 Field deviceField = Player.class.getDeclaredField("audio");

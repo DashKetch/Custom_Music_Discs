@@ -2,7 +2,6 @@ package dashketch.mods.custom_music_discs.network;
 
 import dashketch.mods.custom_music_discs.Custom_music_discs;
 import dashketch.mods.custom_music_discs.item.ModItems;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
