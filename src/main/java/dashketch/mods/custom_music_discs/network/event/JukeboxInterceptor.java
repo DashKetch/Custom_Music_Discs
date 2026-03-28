@@ -1,61 +1,70 @@
 package dashketch.mods.custom_music_discs.network.event;
 
+import dashketch.mods.custom_music_discs.audio.JukeboxAudioEngine;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.JukeboxBlock;
 import net.minecraft.world.level.block.entity.JukeboxBlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import org.essentials.custom_background_music.AudioManager;
-import org.essentials.custom_background_music.KeyBindings;
 
 import java.io.File;
 
 @EventBusSubscriber(modid = "custom_music_discs", bus = EventBusSubscriber.Bus.GAME)
 public class JukeboxInterceptor {
+    static JukeboxAudioEngine engine = JukeboxAudioEngine.getInstance();
 
-    // We use this to track if the current sound is "ours"
-    private static boolean isPlayingJukebox = false;
+    private static BlockPos playingPos = null;
 
     @SubscribeEvent
     public static void onJukeboxRightClick(PlayerInteractEvent.RightClickBlock event) {
         Level level = event.getLevel();
         BlockPos pos = event.getPos();
         ItemStack stack = event.getItemStack();
-        Player player = event.getEntity();
+        BlockState state = level.getBlockState(pos);
 
-        if (level.getBlockState(pos).is(Blocks.JUKEBOX)) {
+        if (state.is(Blocks.JUKEBOX)) {
+            // 1. If it HAS a record, do NOTHING.
+            // Let Vanilla handle the ejection.
+            if (state.getValue(JukeboxBlock.HAS_RECORD)) {
+                engine.stop();
+            }
+
+            // 2. INSERTION LOGIC
             CustomData customData = stack.get(DataComponents.CUSTOM_DATA);
-
             if (customData != null && customData.copyTag().contains("SelectedSong")) {
                 String songName = customData.copyTag().getString("SelectedSong");
 
                 if (level.isClientSide) {
-                    AudioManager am = AudioManager.getInstance();
-                    File musicFile = resolveMusicFile(songName);
+                    // Stop any current jukebox audio before starting new one
+                    JukeboxAudioEngine.getInstance().stop();
 
-                    am.stop();
-                    if (am.loadMusicFile(musicFile)) {
-                        am.play();
-                        isPlayingJukebox = true; // Mark that we are in Jukebox mode
-                    }
+                    File musicFile = resolveMusicFile(songName);
+                    JukeboxAudioEngine.getInstance().play(musicFile);
+                    playingPos = pos;
+                    event.getEntity().displayClientMessage(Component.literal("§bNow playing: " + songName.replace(".mp3", "")), true);
                 } else {
                     if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity jukebox) {
+                        // Set the item and update the block state
                         jukebox.setTheItem(stack.copy());
-                        if (!player.isCreative()) stack.shrink(1);
+                        level.setBlock(pos, state.setValue(JukeboxBlock.HAS_RECORD, true), 3);
+
+                        if (!event.getEntity().isCreative()) {
+                            stack.shrink(1);
+                        }
                     }
                 }
+                // Cancel the event so vanilla doesn't try to treat it like a normal record
                 event.setCancellationResult(InteractionResult.SUCCESS);
                 event.setCanceled(true);
             }
@@ -64,56 +73,33 @@ public class JukeboxInterceptor {
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
-        // Only run this logic if our Jukebox flag is active and music is playing
-        if (isPlayingJukebox && AudioManager.getInstance().isPlaying()) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || playingPos == null) return;
 
-            // This force-clears the 'click' counter and 'pressed' state
-            // for the other mod's keybindings every single tick.
-            while (KeyBindings.STOP_MUSIC.consumeClick()) {
-            }
-            while (KeyBindings.PAUSE_PLAY_MUSIC.consumeClick()) {
-            }
-            while (KeyBindings.OPEN_MUSIC_GUI.consumeClick()) {
-            }
+        BlockState state = mc.level.getBlockState(playingPos);
 
-            // Additionally, force the 'isDown' state to false
-            // (This prevents 'held' key logic)
-            KeyBindings.STOP_MUSIC.setDown(false);
-            KeyBindings.PAUSE_PLAY_MUSIC.setDown(false);
-            KeyBindings.OPEN_MUSIC_GUI.setDown(false);
-        } else {
-            // If the music naturally ends, reset flag
-            if (isPlayingJukebox && !AudioManager.getInstance().isPlaying()) {
-                isPlayingJukebox = false;
-            }
+        if (!state.is(Blocks.JUKEBOX) || !state.getValue(JukeboxBlock.HAS_RECORD)) {
+            engine.stop();
+            playingPos = null;
+            return;
         }
-    }
 
-    @SubscribeEvent
-    public static void onBlockBreak(BlockEvent.BreakEvent event) {
-        if (event.getState().is(Blocks.JUKEBOX)) {
-            AudioManager am = AudioManager.getInstance();
-
-            am.stop();
+        // If the engine stopped itself (song finished), clear the position
+        if (!engine.isPlaying()) {
+            playingPos = null;
+            return;
         }
-    }
 
-    // Add this to handle stopping when the player punches the jukebox (ejects disc)
-    @SubscribeEvent
-    public static void onJukeboxPunch(PlayerInteractEvent.LeftClickBlock event) {
-        if (event.getLevel().getBlockState(event.getPos()).is(Blocks.JUKEBOX) && event.getLevel().isClientSide) {
-            AudioManager.getInstance().stop();
-            isPlayingJukebox = false;
-        }
-    }
-
-    @SubscribeEvent
-    public static void onGuiOpen(ScreenEvent.Opening event) {
-        if (isPlayingJukebox && event.getNewScreen() instanceof org.essentials.custom_background_music.MusicGuiScreen) {
-            event.setCanceled(true);
-            assert Minecraft.getInstance().player != null;
-            Minecraft.getInstance().player.displayClientMessage(
-                    Component.literal("§cManual controls disabled for Jukebox discs!"), true);
+        // Distance Check / Volume Fading
+        if (mc.player != null) {
+            double distSq = mc.player.distanceToSqr(playingPos.getX() + 0.5, playingPos.getY() + 0.5, playingPos.getZ() + 0.5);
+            if (distSq > 4096) {
+                engine.stop();
+                playingPos = null;
+            } else {
+                float volume = (float) Math.max(0, 1.0 - (Math.sqrt(distSq) / 64.0));
+                engine.setVolume(volume);
+            }
         }
     }
 
