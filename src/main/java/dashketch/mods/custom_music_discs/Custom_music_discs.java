@@ -32,7 +32,7 @@ public class Custom_music_discs {
     public static final String MODID = "custom_music_discs";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public Custom_music_discs(IEventBus modEventBus, ModContainer modContainer) {
+    public Custom_music_discs(IEventBus modEventBus, @SuppressWarnings("unused") ModContainer modContainer) {
         ModItems.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 

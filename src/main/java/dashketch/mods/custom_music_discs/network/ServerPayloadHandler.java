@@ -1,6 +1,5 @@
 package dashketch.mods.custom_music_discs.network;
 
-import dashketch.mods.custom_music_discs.Custom_music_discs;
 import dashketch.mods.custom_music_discs.item.ModItems;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -15,6 +14,8 @@ import java.io.FileOutputStream;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import static dashketch.mods.custom_music_discs.Custom_music_discs.LOGGER;
+
 public class ServerPayloadHandler {
     public static void handleData(final MusicUploadPayload data, final IPayloadContext context) {
         context.enqueueWork(() -> {
@@ -24,6 +25,7 @@ public class ServerPayloadHandler {
             //1. Validation
             if (!offhandItem.is(ModItems.BLANK_DISC.get())) {
                 player.sendSystemMessage(Component.literal("§cError: Hold a Blank Disc in your off-hand!"));
+                LOGGER.warn("Player must hold a Blank Disc in their off-hand!");
                 try {
                     Thread.sleep(6000);
                 } catch (InterruptedException e) {
@@ -51,7 +53,7 @@ public class ServerPayloadHandler {
                         // 1. Rename the disc
                         offhandItem.set(DataComponents.CUSTOM_NAME, Component.literal("§bBurned Music Disc"));
 
-                        // 2. Add Lore (Optional but helpful)
+                        // 2. Add Lore
                         offhandItem.set(DataComponents.LORE, new net.minecraft.world.item.component.ItemLore(
                                 java.util.List.of(Component.literal("§7Track: " + safeName))
                         ));
@@ -61,11 +63,14 @@ public class ServerPayloadHandler {
                                 customData.update(tag -> tag.putString("SelectedSong", safeName))
                         );
 
+                        //4. Add enchant glint
+                        offhandItem.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
+
                         player.sendSystemMessage(Component.literal("§aDisk Burned Successfully!"));
                     }
                 }
             } catch (Exception e) {
-                Custom_music_discs.LOGGER.error("Failed to save music file", e);
+                LOGGER.error("Failed to save music file", e);
             }
         });
     }
