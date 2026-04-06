@@ -42,7 +42,7 @@ public class JukeboxInterceptor {
                     engine.stop();
                     playingPos = null; // Clear position safely
                 }
-                // FIX: Stop processing here. Let vanilla handle the ejection.
+                // Stop processing here. Let vanilla handle the ejection.
                 // Do NOT fall through to the insertion logic.
                 return;
             }
@@ -64,8 +64,7 @@ public class JukeboxInterceptor {
                     event.getEntity().displayClientMessage(Component.literal("§bNow playing: " + songName.replace(".mp3", "")), true);
                 }
 
-                // FIX: Update block entity and state on BOTH sides (Client & Server).
-                // If you only do this on the server, the ClientTickEvent fires before the
+                // If this only happens on the server, the ClientTickEvent fires before the
                 // client receives the packet, sees HAS_RECORD is false, and instantly kills the music.
                 if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity jukebox) {
                     jukebox.setTheItem(stack.copy());
@@ -101,15 +100,24 @@ public class JukeboxInterceptor {
         }
 
         // Distance Check / Volume Fading
-        if (mc.player != null) {
-            double distSq = mc.player.distanceToSqr(playingPos.getX() + 0.5, playingPos.getY() + 0.5, playingPos.getZ() + 0.5);
-            if (distSq > 4096) {
-                engine.stop();
-                playingPos = null;
-            } else {
-                float volume = (float) Math.max(0, 1.0 - (Math.sqrt(distSq) / 64.0));
-                engine.setVolume(volume);
-            }
+        if (mc.player != null && engine.isPlaying()) {
+            //noinspection ExtractMethodRecommender
+            double dx = mc.player.getX() - (playingPos.getX() + 0.5);
+            double dy = mc.player.getY() - (playingPos.getY() + 0.5);
+            double dz = mc.player.getZ() - (playingPos.getZ() + 0.5);
+
+            double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+            double maxDistance = 64.0 + 16.0; // distance where sound is silent
+
+            double ratio = distance / maxDistance;
+
+            // Clamp ratio FIRST
+            ratio = Math.clamp(ratio, 0.0, 1.0);
+
+            float volume = (float) Math.max(0, Math.pow(1.0 - ratio, 2));
+
+            engine.setVolume(volume);
         }
     }
 

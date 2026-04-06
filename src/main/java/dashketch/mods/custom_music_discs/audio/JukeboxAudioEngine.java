@@ -50,13 +50,13 @@ public class JukeboxAudioEngine {
     }
 
     public boolean isPlaying() {
-        // FIX: Removed 'player != null' check to avoid race conditions
-        // while the audio stream is taking a few milliseconds to initialize.
         return musicThread != null && musicThread.isAlive();
     }
 
+    public float getVolume() { return this.volume; }
+
     public void setVolume(float targetVolume) {
-        this.volume = Math.max(0.0f, Math.min(1.0f, targetVolume));
+        this.volume = Math.clamp(targetVolume, 0.0f, 1.0f);
         if (player != null) {
             try {
                 Field deviceField = Player.class.getDeclaredField("audio");

@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import dashketch.mods.custom_music_discs.item.ModItems;
 import dashketch.mods.custom_music_discs.network.MusicUploadPayload;
 import dashketch.mods.custom_music_discs.network.ServerPayloadHandler;
+import dashketch.mods.custom_music_discs.server.ModConfigs;
 import dashketch.mods.custom_music_discs.server.recipeGen;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
@@ -15,6 +16,7 @@ import net.minecraft.world.item.CreativeModeTabs;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
@@ -32,13 +34,17 @@ public class Custom_music_discs {
     public static final String MODID = "custom_music_discs";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    public Custom_music_discs(IEventBus modEventBus, @SuppressWarnings("unused") ModContainer modContainer) {
+    public Custom_music_discs(IEventBus modEventBus, ModContainer modContainer) {
         ModItems.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::registerNetworking);
 
         modEventBus.addListener(this::gatherData);
+
+        modContainer.registerConfig(ModConfig.Type.SERVER, ModConfigs.SPEC);
+
+        modContainer.registerConfig(ModConfig.Type.CLIENT, ModConfigs.SPEC);
     }
 
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
