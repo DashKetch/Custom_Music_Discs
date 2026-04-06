@@ -53,6 +53,7 @@ public class JukeboxAudioEngine {
         return musicThread != null && musicThread.isAlive();
     }
 
+    @SuppressWarnings("unused")
     public float getVolume() { return this.volume; }
 
     public void setVolume(float targetVolume) {

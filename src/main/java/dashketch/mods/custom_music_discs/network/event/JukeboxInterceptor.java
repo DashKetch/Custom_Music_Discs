@@ -1,6 +1,7 @@
 package dashketch.mods.custom_music_discs.network.event;
 
 import dashketch.mods.custom_music_discs.audio.JukeboxAudioEngine;
+import dashketch.mods.custom_music_discs.server.ModConfigs;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
@@ -101,23 +102,35 @@ public class JukeboxInterceptor {
 
         // Distance Check / Volume Fading
         if (mc.player != null && engine.isPlaying()) {
-            //noinspection ExtractMethodRecommender
             double dx = mc.player.getX() - (playingPos.getX() + 0.5);
             double dy = mc.player.getY() - (playingPos.getY() + 0.5);
             double dz = mc.player.getZ() - (playingPos.getZ() + 0.5);
 
             double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-            double maxDistance = 64.0 + 16.0; // distance where sound is silent
+            if (ModConfigs.SPEC.isLoaded() && ModConfigs.JUKEBOX_RANGE_BOOL.get()) {  // distance where sound is silent
+                double maxDistance = ModConfigs.JUKEBOX_RANGE.get() + 16.0;
 
-            double ratio = distance / maxDistance;
+                double ratio = distance / maxDistance;
 
-            // Clamp ratio FIRST
-            ratio = Math.clamp(ratio, 0.0, 1.0);
+                // Clamp ratio FIRST
+                ratio = Math.clamp(ratio, 0.0, 1.0);
 
-            float volume = (float) Math.max(0, Math.pow(1.0 - ratio, 2));
+                float volume = (float) Math.max(0, Math.pow(1.0 - ratio, 2));
 
-            engine.setVolume(volume);
+                engine.setVolume(volume);
+            } else if (!ModConfigs.JUKEBOX_RANGE_BOOL.get() || !ModConfigs.SPEC.isLoaded()) {
+                double maxDistance = 64.0 + 16.0;
+
+                double ratio = distance / maxDistance;
+
+                // Clamp ratio FIRST
+                ratio = Math.clamp(ratio, 0.0, 1.0);
+
+                float volume = (float) Math.max(0, Math.pow(1.0 - ratio, 2));
+
+                engine.setVolume(volume);
+            }
         }
     }
 
