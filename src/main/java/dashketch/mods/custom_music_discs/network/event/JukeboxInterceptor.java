@@ -26,7 +26,6 @@ import java.io.File;
 public class JukeboxInterceptor {
     static JukeboxAudioEngine engine = JukeboxAudioEngine.getInstance();
     static AudioManager am = AudioManager.getInstance();
-
     private static BlockPos playingPos = null;
 
     @SubscribeEvent

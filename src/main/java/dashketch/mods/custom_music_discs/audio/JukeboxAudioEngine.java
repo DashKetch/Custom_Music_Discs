@@ -3,6 +3,7 @@ package dashketch.mods.custom_music_discs.audio;
 import javazoom.jl.player.AudioDevice;
 import javazoom.jl.player.JavaSoundAudioDevice;
 import javazoom.jl.player.Player;
+import org.essentials.custom_background_music.MusicMuter;
 
 import javax.sound.sampled.FloatControl;
 import javax.sound.sampled.SourceDataLine;
@@ -22,6 +23,7 @@ public class JukeboxAudioEngine {
     }
 
     public void play(File musicFile) {
+        MusicMuter.muteMinecraftMusic();
         stop(); // Ensure old music is dead
         if (musicFile != null && musicFile.exists()) {
             musicThread = new Thread(() -> {
@@ -47,6 +49,7 @@ public class JukeboxAudioEngine {
             musicThread.interrupt();
             musicThread = null;
         }
+        MusicMuter.unmuteMinecraftMusic();
     }
 
     public boolean isPlaying() {
