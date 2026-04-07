@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_blank_disc": {
+      "conditions": {
+        "items": [
+          {
+            "items": "custom_music_discs:blank_custom_disc"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "custom_music_discs:blank_custom_disc_recraft"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_blank_disc"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "custom_music_discs:blank_custom_disc_recraft"
+    ]
+  }
+}

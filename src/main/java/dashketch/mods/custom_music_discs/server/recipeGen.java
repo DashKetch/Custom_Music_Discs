@@ -12,6 +12,10 @@ import java.util.concurrent.CompletableFuture;
 
 public class recipeGen extends RecipeProvider {
 
+    /*
+    Use ./gradlew runData to run recipe gen
+     */
+
     public recipeGen(PackOutput output, CompletableFuture<HolderLookup.Provider> registries) {
         super(output, registries);
     }
@@ -34,5 +38,10 @@ public class recipeGen extends RecipeProvider {
                 .define('Z', Items.IRON_NUGGET)
                 .unlockedBy("has_diamond", has(Items.DIAMOND))
                 .save(output, ResourceLocation.fromNamespaceAndPath("custom_music_discs", "disc_burner"));
+
+        ShapelessRecipeBuilder.shapeless(RecipeCategory.MISC, ModItems.BLANK_DISC, 1)
+                .requires(ModItems.BLANK_DISC)
+                .unlockedBy("has_blank_disc", has(ModItems.BLANK_DISC))
+                .save(output, ResourceLocation.fromNamespaceAndPath("custom_music_discs", "blank_custom_disc_recraft"));
     }
 }

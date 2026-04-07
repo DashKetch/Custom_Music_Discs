@@ -1,5 +1,7 @@
-// 1.21.1	2026-03-23T09:09:01.6699111	Recipes
+// 1.21.1	2026-04-06T20:34:01.8335306	Recipes
 284d372bc65080e4dc7bf552722ef45a93b7c20b data/custom_music_discs/advancement/recipes/misc/blank_custom_disc.json
+8bef5fa677bf2fdbcefa8c088101dac111b490f9 data/custom_music_discs/advancement/recipes/misc/blank_custom_disc_recraft.json
 7458b878a12fa4a1c2040ecc3fd30632d4e64e2b data/custom_music_discs/advancement/recipes/tools/disc_burner.json
 eedd3384dd89aebc0ae0534d524d4074d7b13708 data/custom_music_discs/recipe/blank_custom_disc.json
+5217e4f9bf4cedce6a39991c2c3e59009984420b data/custom_music_discs/recipe/blank_custom_disc_recraft.json
 f854038f1962fcf89191b5b45970d58c59e70f04 data/custom_music_discs/recipe/disc_burner.json

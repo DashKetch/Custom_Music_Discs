@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "custom_music_discs:blank_custom_disc"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "custom_music_discs:blank_custom_disc"
+  }
+}
