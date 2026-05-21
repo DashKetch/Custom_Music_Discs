@@ -67,7 +67,7 @@ public class JukeboxInterceptor {
                 // If this only happens on the server, the ClientTickEvent fires before the
                 // client receives the packet, sees HAS_RECORD is false, and instantly kills the music.
                 if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity jukebox) {
-                    jukebox.setTheItem(stack.copy());
+                    jukebox.setTheItem(stack.copyWithCount(1));
                     level.setBlock(pos, state.setValue(JukeboxBlock.HAS_RECORD, true), 3);
 
                     if (!level.isClientSide && !event.getEntity().isCreative()) {

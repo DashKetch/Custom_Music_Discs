@@ -23,16 +23,21 @@ public class JukeboxAudioEngine {
     }
 
     public void play(File musicFile) {
-        MusicMuter.muteMinecraftMusic();
         stop(); // Ensure old music is dead
         if (musicFile != null && musicFile.exists()) {
             musicThread = new Thread(() -> {
+
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ignored) {}
+
                 try (FileInputStream fis = new FileInputStream(musicFile)) {
                     player = new Player(new BufferedInputStream(fis));
                     setVolume(volume); // Apply current volume
                     player.play();
                 } catch (Exception e) {
-                    System.out.println("Jukebox stream closed.");
+                    System.out.println("Jukebox failed to play or stream closed: " + e.getMessage());
+                    e.printStackTrace();
                 }
             });
             musicThread.setDaemon(true);
