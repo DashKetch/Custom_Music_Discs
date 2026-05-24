@@ -131,10 +131,24 @@ public class JukeboxInterceptor {
     private static File resolveMusicFile(String fileName) {
         Minecraft mc = Minecraft.getInstance();
         File mcDir = mc.gameDirectory;
+
+        // If player is in a local world, get the directory name of the current world
         if (mc.getSingleplayerServer() != null) {
             String worldName = mc.getSingleplayerServer().getWorldData().getLevelName();
             return new File(mcDir, "saves/" + worldName + "/config/uploaded_music/" + fileName);
         }
+
+        // FALLBACK FIX: If singleplayer server isn't fully ready yet, but game is at a client level
+        if (mc.level != null) {
+            // In a dev environment, the world folder is usually just "world"
+            // Let's check if the path exists in your specific 'run/world/...' setup
+            File serverWorldFile = new File(mcDir, "world/config/uploaded_music/" + fileName);
+            if (serverWorldFile.exists()) {
+                return serverWorldFile;
+            }
+        }
+
+        // Global fallback
         return new File(mcDir, "config/uploaded_music/" + fileName);
     }
 }
