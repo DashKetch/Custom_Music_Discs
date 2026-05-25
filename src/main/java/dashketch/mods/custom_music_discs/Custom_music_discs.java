@@ -2,10 +2,7 @@ package dashketch.mods.custom_music_discs;
 
 import com.mojang.logging.LogUtils;
 import dashketch.mods.custom_music_discs.item.ModItems;
-import dashketch.mods.custom_music_discs.network.MusicChunkPacket;
-import dashketch.mods.custom_music_discs.network.MusicTransferStartPacket;
-import dashketch.mods.custom_music_discs.network.MusicUploadPayload;
-import dashketch.mods.custom_music_discs.network.ServerPayloadHandler;
+import dashketch.mods.custom_music_discs.network.*;
 import dashketch.mods.custom_music_discs.server.ModConfigs;
 import dashketch.mods.custom_music_discs.server.recipeGen;
 import net.minecraft.core.HolderLookup;
@@ -41,17 +38,14 @@ public class Custom_music_discs {
         CREATIVE_MODE_TABS.register(modEventBus);
 
         modEventBus.addListener(this::registerNetworking);
-
         modEventBus.addListener(this::gatherData);
 
         modContainer.registerConfig(ModConfig.Type.SERVER, ModConfigs.SPEC);
-
         modContainer.registerConfig(ModConfig.Type.CLIENT, ModConfigs.SPEC);
     }
 
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    // Registering the Creative Tab
     @SuppressWarnings("unused")
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CUSTOM_DISCS_TAB = CREATIVE_MODE_TABS.register("custom_music_discs",
             () -> CreativeModeTab.builder()
@@ -64,14 +58,31 @@ public class Custom_music_discs {
                     }).build());
 
     private void registerNetworking(final RegisterPayloadHandlersEvent event) {
-        final PayloadRegistrar registrar = event.registrar("1");
+        final PayloadRegistrar registrar = event.registrar(MODID);
 
+        // 1. UPLOAD PACKET (Client -> Server)
         registrar.playToServer(
                 MusicUploadPayload.TYPE,
                 MusicUploadPayload.CODEC,
                 ServerPayloadHandler::handleData
         );
 
+        // 2. DOWNLOAD REQUEST PACKET (Client -> Server)
+        // Registered strictly as a standard unidirectional channel to prevent duplicate errors
+        registrar.playToServer(
+                MusicDownloadRequestPayload.TYPE,
+                MusicDownloadRequestPayload.CODEC,
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+                        net.minecraft.server.MinecraftServer server = serverPlayer.getServer();
+                        if (server != null) {
+                            dashketch.mods.custom_music_discs.server.ModCommands.syncSong(server, serverPlayer, payload.fileName());
+                        }
+                    }
+                })
+        );
+
+        // 3. START PACKET (Server -> Client)
         registrar.playToClient(
                 MusicTransferStartPacket.TYPE,
                 MusicTransferStartPacket.STREAM_CODEC,
@@ -81,6 +92,7 @@ public class Custom_music_discs {
                 ))
         );
 
+        // 4. CHUNK PACKET (Server -> Client)
         registrar.playToClient(
                 MusicChunkPacket.TYPE,
                 MusicChunkPacket.STREAM_CODEC,

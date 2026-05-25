@@ -2,12 +2,10 @@ package dashketch.mods.custom_music_discs.network.event;
 
 import dashketch.mods.custom_music_discs.audio.JukeboxAudioEngine;
 import dashketch.mods.custom_music_discs.server.ModConfigs;
-import dashketch.mods.custom_music_discs.network.ServerMusicStreamer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.CustomData;
@@ -23,6 +21,8 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import org.essentials.custom_background_music.AudioManager;
 
 import java.io.File;
+
+import static dashketch.mods.custom_music_discs.Custom_music_discs.LOGGER;
 
 @EventBusSubscriber(modid = "custom_music_discs", bus = EventBusSubscriber.Bus.GAME)
 public class JukeboxInterceptor {
@@ -42,9 +42,9 @@ public class JukeboxInterceptor {
             if (state.getValue(JukeboxBlock.HAS_RECORD)) {
                 if (level.isClientSide) {
                     engine.stop();
-                    playingPos = null; // Clear position safely
+                    playingPos = null;
                 }
-                // Stop processing here. Let vanilla handle the ejection.
+                // Stop processing and hand control back to vanilla for ejection
                 return;
             }
 
@@ -59,30 +59,22 @@ public class JukeboxInterceptor {
 
                 if (level.isClientSide) {
                     engine.stop();
-                    playingPos = pos;
-                    event.getEntity().displayClientMessage(Component.literal("§bNow playing: " + songName.replace(".mp3", "")), true);
-                } else {
-                // SERVER-SIDE ACTION: Find file inside server directory and start streaming it
-                if (event.getEntity() instanceof ServerPlayer serverPlayer) {
-                    // 1. Check current world folder directory first (e.g., run/world/)
-                    @SuppressWarnings("DataFlowIssue") File worldDir = level.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toFile();
-                    File musicFile = new File(worldDir, "config/uploaded_music/" + songName);
 
-                    // 2. FALLBACK: Check project root directory (e.g., run/config/uploaded_music/)
-                    if (!musicFile.exists()) {
-                        musicFile = new File("config/uploaded_music/" + songName);
-                    }
+                    // Resolve the file out of the local client cache directory
+                    File cacheDir = new File(Minecraft.getInstance().gameDirectory, "config/uploaded_music/client_cache");
+                    File localMusic = new File(cacheDir, songName);
 
-                    if (musicFile.exists()) {
-                        ServerMusicStreamer.streamFileToPlayer(musicFile, serverPlayer);
+                    if (localMusic.exists()) {
+                        playingPos = pos;
+                        engine.play(localMusic);
+                        event.getEntity().displayClientMessage(Component.literal("§bNow playing: " + songName.replace(".mp3", "")), true);
                     } else {
-                        System.err.println("[SERVER FATAL] Custom disc failed to find file at either location!");
-                        System.err.println("Tried World Path: " + new File(worldDir, "config/uploaded_music/" + songName).getAbsolutePath());
-                        System.err.println("Tried Root Fallback Path: " + new File("config/uploaded_music/" + songName).getAbsolutePath());
+                        event.getEntity().displayClientMessage(Component.literal("§c[!] Song missing from your cache. Try syncing music from the menu!"), true);
+                        LOGGER.warn("[CLIENT] Tried to play cached file but it was missing: {}", localMusic.getAbsolutePath());
                     }
                 }
-            }
 
+                // Server side purely updates the block state data
                 if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity jukebox) {
                     jukebox.setTheItem(stack.copyWithCount(1));
                     level.setBlock(pos, state.setValue(JukeboxBlock.HAS_RECORD, true), 3);
@@ -116,27 +108,22 @@ public class JukeboxInterceptor {
             return;
         }
 
-        // Distance Check / Volume Fading
         if (mc.player != null && engine.isPlaying()) {
             double dx = mc.player.getX() - (playingPos.getX() + 0.5);
             double dy = mc.player.getY() - (playingPos.getY() + 0.5);
             double dz = mc.player.getZ() - (playingPos.getZ() + 0.5);
             double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-            // Fetch user's vanilla volume settings
             float sliderMultiplier = dashketch.mods.custom_music_discs.client.override.volume_slider.getJukeboxVolume();
 
             if (ModConfigs.SPEC.isLoaded() && ModConfigs.JUKEBOX_RANGE_BOOL.get()) {
                 double maxDistance = ModConfigs.JUKEBOX_RANGE.get() + 16.0;
                 double ratio = Math.clamp(distance / maxDistance, 0.0, 1.0);
-
                 float volume = (float) Math.pow(1.0 - ratio, 2) * sliderMultiplier;
                 engine.setVolume(volume);
-
             } else {
                 double maxDistance = 64.0 + 16.0;
                 double ratio = Math.clamp(distance / maxDistance, 0.0, 1.0);
-
                 float volume = (float) Math.pow(1.0 - ratio, 2) * sliderMultiplier;
                 engine.setVolume(volume);
             }

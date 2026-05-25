@@ -1,36 +1,40 @@
 package dashketch.mods.custom_music_discs.client;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
+
 import java.io.File;
 import java.io.FileOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
-import dashketch.mods.custom_music_discs.audio.JukeboxAudioEngine;
-import net.minecraft.client.Minecraft;
+import static dashketch.mods.custom_music_discs.Custom_music_discs.LOGGER;
 
 public class ClientMusicReceiver {
     private static UUID activeSessionId = null;
-    private static File tempFile = null;
+    private static File downloadingFile = null;
     private static FileOutputStream fos = null;
     private static int chunksReceived = 0;
 
     public static synchronized void handleStartPacket(UUID sessionId, String fileName) {
         try {
-            cleanup(); // Reset and close out previous data if a song was skipped/changed
-
+            cleanup();
             activeSessionId = sessionId;
             chunksReceived = 0;
 
-            // Saves inside a dynamic 'client_cache' folder inside the player's local game directory
             File cacheDir = new File(Minecraft.getInstance().gameDirectory, "config/uploaded_music/client_cache");
-            if (!cacheDir.exists()) //noinspection ResultOfMethodCallIgnored
-                cacheDir.mkdirs();
+            if (!cacheDir.exists() && !cacheDir.mkdirs()) {
+                LOGGER.warn("[CLIENT] Could not create cache directory!");
+            }
 
-            tempFile = new File(cacheDir, "temp_" + fileName);
-            fos = new FileOutputStream(tempFile);
+            downloadingFile = new File(cacheDir, fileName + ".tmp");
+            fos = new FileOutputStream(downloadingFile);
 
-            System.out.println("[CLIENT] Preparing to receive track: " + fileName);
+            LOGGER.info("[CLIENT] Starting background download for: {}", fileName);
         } catch (Exception e) {
-            System.err.println("[CLIENT] Failed to initialize file buffer: " + e.getMessage());
+            LOGGER.warn("[CLIENT] Failed to initialize file buffer: {}", e.getMessage());
         }
     }
 
@@ -41,29 +45,64 @@ public class ClientMusicReceiver {
             fos.write(data);
             chunksReceived++;
 
+            // When the final chunk arrives
             if (chunksReceived >= totalChunks) {
-                fos.flush();
-                fos.close();
+                // 1. Flush and explicitly close the stream to release the handle
+                try {
+                    fos.flush();
+                } catch (Exception ignored) {}
+                try {
+                    fos.close();
+                } catch (Exception ignored) {}
                 fos = null;
 
-                System.out.println("[CLIENT] File transfer complete! Playing: " + tempFile.getName());
+                File sourceFile = downloadingFile;
+                String cleanName = sourceFile.getName().replace(".tmp", "");
+                File targetFile = new File(sourceFile.getParentFile(), cleanName);
 
-                // Trigger your local audio engine using the newly assembled cache file!
-                JukeboxAudioEngine.getInstance().play(tempFile);
+                Path sourcePath = sourceFile.toPath();
+                Path targetPath = targetFile.toPath();
+
+                // 2. Battle-tested retry loop to beat the OS filesystem lock
+                boolean moved = false;
+                for (int i = 0; i < 5; i++) {
+                    try {
+                        Files.move(sourcePath, targetPath, StandardCopyOption.REPLACE_EXISTING);
+                        moved = true;
+                        break; // Success! Break out of the loop
+                    } catch (Exception e) {
+                        // Sleep for 20ms to let the OS release the handle
+                        try { Thread.sleep(20); } catch (InterruptedException ignored) {}
+                    }
+                }
+
+                // Fallback: If NIO Files.move still fails, try standard IO renameTo
+                if (!moved && sourceFile.renameTo(targetFile)) {
+                    moved = true;
+                }
+
+                if (moved) {
+                    LOGGER.info("[CLIENT] Successfully cached and renamed: {}", targetFile.getName());
+
+                    if (Minecraft.getInstance().player != null) {
+                        Minecraft.getInstance().player.displayClientMessage(
+                                Component.literal("§a[Custom Discs] Downloaded new song: " + cleanName), false);
+                    }
+                } else {
+                    LOGGER.error("[CLIENT] Failed to rename temporary file due to a persistent OS lock: {}", sourceFile.getName());
+                }
+
+                cleanup();
             }
         } catch (Exception e) {
-            System.err.println("[CLIENT] Error writing chunk " + chunkIndex + ": " + e.getMessage());
+            LOGGER.warn("[CLIENT] Error writing chunk {}: {}", chunkIndex, e.getMessage());
             cleanup();
         }
     }
 
     public static void cleanup() {
-        try {
-            if (fos != null) {
-                fos.close();
-                fos = null;
-            }
-        } catch (Exception ignored) {}
+        try { if (fos != null) fos.close(); } catch (Exception ignored) {}
+        fos = null;
         activeSessionId = null;
         chunksReceived = 0;
     }
