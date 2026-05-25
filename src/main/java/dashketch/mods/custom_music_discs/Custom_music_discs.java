@@ -2,6 +2,8 @@ package dashketch.mods.custom_music_discs;
 
 import com.mojang.logging.LogUtils;
 import dashketch.mods.custom_music_discs.item.ModItems;
+import dashketch.mods.custom_music_discs.network.MusicChunkPacket;
+import dashketch.mods.custom_music_discs.network.MusicTransferStartPacket;
 import dashketch.mods.custom_music_discs.network.MusicUploadPayload;
 import dashketch.mods.custom_music_discs.network.ServerPayloadHandler;
 import dashketch.mods.custom_music_discs.server.ModConfigs;
@@ -68,6 +70,26 @@ public class Custom_music_discs {
                 MusicUploadPayload.TYPE,
                 MusicUploadPayload.CODEC,
                 ServerPayloadHandler::handleData
+        );
+
+        registrar.playToClient(
+                MusicTransferStartPacket.TYPE,
+                MusicTransferStartPacket.STREAM_CODEC,
+                (packet, context) -> context.enqueueWork(() -> dashketch.mods.custom_music_discs.client.ClientMusicReceiver.handleStartPacket(
+                        packet.trackSessionId(),
+                        packet.fileName()
+                ))
+        );
+
+        registrar.playToClient(
+                MusicChunkPacket.TYPE,
+                MusicChunkPacket.STREAM_CODEC,
+                (packet, context) -> context.enqueueWork(() -> dashketch.mods.custom_music_discs.client.ClientMusicReceiver.handleChunkPacket(
+                        packet.trackSessionId(),
+                        packet.chunkIndex(),
+                        packet.data(),
+                        packet.totalChunks()
+                ))
         );
     }
 

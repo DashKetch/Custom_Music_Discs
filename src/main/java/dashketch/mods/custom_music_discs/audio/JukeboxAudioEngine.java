@@ -24,7 +24,14 @@ public class JukeboxAudioEngine {
     }
 
     public void play(File musicFile) {
-        MusicMuter.muteMinecraftMusic();
+        try {
+            MusicMuter.muteMinecraftMusic();
+        } catch (Exception e) {
+            LOGGER.warn("Could not mute the music!", e);
+            return;
+        }
+
+
         stop(); // Ensure old music is dead
 
         // 1. Check if file is null or missing
