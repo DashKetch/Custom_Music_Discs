@@ -38,7 +38,6 @@ public class JukeboxInterceptor {
     public static void onJukeboxRightClick(PlayerInteractEvent.RightClickBlock event) {
         Level level = event.getLevel();
         BlockPos pos = event.getPos();
-        float volume = getJukeboxVolume();
         ItemStack stack = event.getItemStack();
         BlockState state = level.getBlockState(pos);
 
@@ -69,9 +68,11 @@ public class JukeboxInterceptor {
                         stack.shrink(1);
 
                         // Broadcast to everyone in the same dimension
+                        //noinspection DataFlowIssue
                         for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+                            //noinspection resource
                             if (player.level() == level) {
-                                PacketDistributor.sendToPlayer(player, new PlayCustomMusicPayload(pos, songName, volume));
+                                PacketDistributor.sendToPlayer(player, new PlayCustomMusicPayload(pos, songName));
                             }
                         }
                     }
@@ -84,7 +85,7 @@ public class JukeboxInterceptor {
     }
 
     // 3. NETWORK PLAYBACK: This runs for every client when they receive the broadcast packet
-    public static void handlePlayBroadcast(BlockPos pos, String songName, float Volume) {
+    public static void handlePlayBroadcast(BlockPos pos, String songName) {
         engine.stop(); // Clean up any old song playing
 
         File cacheDir = new File(Minecraft.getInstance().gameDirectory, "config/uploaded_music/client_cache");
@@ -107,7 +108,6 @@ public class JukeboxInterceptor {
         }
     }
 
-    // Client tick stays exactly the same as you had it!
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
