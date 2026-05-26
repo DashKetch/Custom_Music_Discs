@@ -103,6 +103,15 @@ public class Custom_music_discs {
                         packet.totalChunks()
                 ))
         );
+
+        // 5. JUKEBOX BROADCAST PACKET (Server -> Client)
+        registrar.playToClient(
+                dashketch.mods.custom_music_discs.network.PlayCustomMusicPayload.TYPE,
+                dashketch.mods.custom_music_discs.network.PlayCustomMusicPayload.CODEC,
+                (packet, context) -> context.enqueueWork(() ->
+                        dashketch.mods.custom_music_discs.network.event.JukeboxInterceptor.handlePlayBroadcast(packet.pos(), packet.songName(), packet.volume())
+                )
+        );
     }
 
     private void gatherData(final GatherDataEvent event) {

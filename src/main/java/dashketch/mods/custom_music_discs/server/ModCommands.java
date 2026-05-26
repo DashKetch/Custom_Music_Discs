@@ -36,7 +36,7 @@ public class ModCommands {
         );
 
         event.getDispatcher().register(Commands.literal("DownloadSong")
-                .then(Commands.literal("sync")
+                .then(Commands.literal("song")
                         .then(Commands.argument("filename", StringArgumentType.string())
                                 .executes(context -> {
                                     CommandSourceStack source = context.getSource();
