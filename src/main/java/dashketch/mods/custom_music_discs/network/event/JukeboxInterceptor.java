@@ -60,7 +60,7 @@ public class JukeboxInterceptor {
             if (customData != null && customData.copyTag().contains("SelectedSong")) {
                 String songName = customData.copyTag().getString("SelectedSong");
 
-                // SERVER SIDE: Handle the inventory math, update the block, and Broadcast the song to everyone!
+                // SERVER SIDE: Handle the inventory math, update the block, and Broadcast the song to everyone
                 if (!level.isClientSide) {
                     if (level.getBlockEntity(pos) instanceof JukeboxBlockEntity jukebox) {
                         jukebox.setTheItem(stack.copyWithCount(1));
@@ -73,6 +73,10 @@ public class JukeboxInterceptor {
                             //noinspection resource
                             if (player.level() == level) {
                                 PacketDistributor.sendToPlayer(player, new PlayCustomMusicPayload(pos, songName));
+                            }
+
+                            if (player.hasDisconnected()) {
+                                engine.stop();
                             }
                         }
                     }
