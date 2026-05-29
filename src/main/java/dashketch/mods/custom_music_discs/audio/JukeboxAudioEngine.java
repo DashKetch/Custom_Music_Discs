@@ -5,7 +5,7 @@ import javazoom.jl.player.AudioDevice;
 import javazoom.jl.player.JavaSoundAudioDevice;
 import javazoom.jl.player.Player;
 import org.essentials.custom_background_music.MusicMuter;
-import dashketch.mods.custom_music_discs.client.AudioDeviceSync; // Import the Sync utility!
+import dashketch.mods.custom_music_discs.client.AudioDeviceSync;
 
 import javax.sound.sampled.*;
 import java.io.File;
@@ -25,47 +25,64 @@ public class JukeboxAudioEngine {
     }
 
     private AudioDevice createSyncedDevice() {
-        try {
-            Mixer.Info mixerInfo = AudioDeviceSync.getMinecraftSelectedMixer();
-            Mixer mixer = mixerInfo != null ? AudioSystem.getMixer(mixerInfo) : null;
+        return new JavaSoundAudioDevice() {
+            @Override
+            protected void createSource() throws JavaLayerException {
+                // 1. Let JLayer run its default setup so all internal states/buffers are fully initialized
+                super.createSource();
 
-            // Create an on-the-fly subclass of JLayer's AudioDevice
-            return new JavaSoundAudioDevice() {
-                @Override
-                protected void createSource() throws JavaLayerException {
-                    try {
-                        AudioFormat fmt = getAudioFormat();
-                        DataLine.Info info = new DataLine.Info(SourceDataLine.class, fmt);
+                try {
+                    Mixer.Info mixerInfo = AudioDeviceSync.getMinecraftSelectedMixer();
 
-                        SourceDataLine line;
-                        // Force it to use the Minecraft Mixer
-                        if (mixer != null) {
-                            line = (SourceDataLine) mixer.getLine(info);
-                        } else {
-                            line = (SourceDataLine) AudioSystem.getLine(info);
+                    // Check if system defualt device
+                    if (mixerInfo == null) {
+                        return;
+                    }
+
+                    LOGGER.info("[CUSTOM DISCS] Intercepting pipeline for hardware mixer: {}", mixerInfo.getName());
+
+                    // 2. Grab JLayer's internal private 'source' field using reflection
+                    Field sourceField = JavaSoundAudioDevice.class.getDeclaredField("source");
+                    sourceField.setAccessible(true);
+                    SourceDataLine defaultLine = (SourceDataLine) sourceField.get(this);
+
+                    // 3. Grab JLayer's internal format
+                    AudioFormat fmt = getAudioFormat();
+                    DataLine.Info info = new DataLine.Info(SourceDataLine.class, fmt);
+                    Mixer mixer = AudioSystem.getMixer(mixerInfo);
+
+                    if (mixer != null && mixer.isLineSupported(info)) {
+                        // Close the default system line before swapping
+                        if (defaultLine != null) {
+                            try { defaultLine.close(); } catch (Exception ignored) {}
                         }
 
-                        line.open(fmt);
+                        // Open the new hardware line using the buffer size JLayer calculated
+                        SourceDataLine hardwareLine = (SourceDataLine) mixer.getLine(info);
 
-                        // Inject the line back into JLayer's private 'source' variable
-                        Field sourceField = JavaSoundAudioDevice.class.getDeclaredField("source");
-                        sourceField.setAccessible(true);
-                        sourceField.set(this, line);
+                        // Pull the calculated buffer size directly from the old line properties if available
+                        int bufferSize = (defaultLine != null) ? defaultLine.getBufferSize() : AudioSystem.NOT_SPECIFIED;
 
-                    } catch (Exception e) {
-                        LOGGER.warn("[CUSTOM DISCS] Custom device failed, falling back to default.", e);
-                        super.createSource(); // Let JLayer do its default behavior as a safety net
+                        if (bufferSize > 0) {
+                            hardwareLine.open(fmt, bufferSize);
+                        } else {
+                            hardwareLine.open(fmt);
+                        }
+
+                        hardwareLine.start();
+
+                        // 4. Inject the hardware-bound line back into JLayer
+                        sourceField.set(this, hardwareLine);
+                        LOGGER.info("[CUSTOM DISCS] Audio pipeline cleanly bound to hardware device.");
+                    } else {
+                        LOGGER.warn("[CUSTOM DISCS] Target mixer does not support this format. Keeping default line.");
                     }
+
+                } catch (Exception e) {
+                    LOGGER.error("[CUSTOM DISCS] Hardware routing failed, staying on default engine track.", e);
                 }
-            };
-        } catch (Exception e) {
-            LOGGER.warn("[CUSTOM DISCS] Audio Device Factory failed.", e);
-            try {
-                return javazoom.jl.player.FactoryRegistry.systemRegistry().createAudioDevice();
-            } catch (Exception ex) {
-                return null;
             }
-        }
+        };
     }
 
     public void play(File musicFile) {
@@ -76,31 +93,24 @@ public class JukeboxAudioEngine {
             return;
         }
 
-        stop(); // Ensure old music is dead
+        stop();
 
-        // 1. Check if file is null or missing
-        if (musicFile == null) {
-            LOGGER.warn("[CUSTOM DISCS FATAL] musicFile is NULL!");
-            return;
-        }
-        if (!musicFile.exists()) {
-            LOGGER.warn("[CUSTOM DISCS FATAL] File does not exist at path: {}", musicFile.getAbsolutePath());
+        if (musicFile == null || !musicFile.exists()) {
+            LOGGER.warn("[CUSTOM DISCS FATAL] File missing or null!");
             return;
         }
 
-        LOGGER.info("[CUSTOM DISCS] Successfully found file, starting thread for: {}", musicFile.getName());
+        LOGGER.info("[CUSTOM DISCS] Starting thread for: {}", musicFile.getName());
 
         musicThread = new Thread(() -> {
-            // 2. ATTEMPT 1: Play instantly
             try (FileInputStream fis = new FileInputStream(musicFile)) {
-                // Instead of letting JLayer pick the device, pass in the synced one
                 AudioDevice customDevice = createSyncedDevice();
                 player = new javazoom.jl.player.Player(new java.io.BufferedInputStream(fis), customDevice);
 
                 setVolume(volume);
                 player.play();
             } catch (Exception e) {
-                LOGGER.warn("[CUSTOM DISCS] Attempt 1 failed (Likely Line Lock): {}", e.getMessage());
+                LOGGER.warn("[CUSTOM DISCS] Playback failed: {}", e.getMessage());
             }
         });
         musicThread.setDaemon(true);
@@ -118,8 +128,6 @@ public class JukeboxAudioEngine {
         }
         MusicMuter.unmuteMinecraftMusic();
     }
-
-    //todo: fix music not playing at all because i'm fixing the bug where the music doesn't play out of the right output device
 
     public boolean isPlaying() {
         return musicThread != null && musicThread.isAlive();
@@ -144,6 +152,7 @@ public class JukeboxAudioEngine {
                     if (source != null && source.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
                         FloatControl gainControl = (FloatControl) source.getControl(FloatControl.Type.MASTER_GAIN);
                         float dB = (float) (Math.log(this.volume <= 0.0f ? 1.0e-4f : this.volume) / Math.log(10.0f) * 20.0f);
+                        dB = Math.clamp(dB, gainControl.getMinimum(), gainControl.getMaximum());
                         gainControl.setValue(dB);
                     }
                 }

@@ -1,33 +1,51 @@
 package dashketch.mods.custom_music_discs.client;
 
 import net.minecraft.client.Minecraft;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Mixer;
+import javax.sound.sampled.*;
+
+import static dashketch.mods.custom_music_discs.Custom_music_discs.LOGGER;
 
 public class AudioDeviceSync {
 
     public static Mixer.Info getMinecraftSelectedMixer() {
-        // Grab the exact device string the user selected in the Minecraft Audio settings
         String mcDevice = Minecraft.getInstance().options.soundDevice().get();
 
-        // If it's empty, they have "System Default" selected in Minecraft anyway
+        // Log all the found devices
+        LOGGER.debug("[CUSTOM DISCS] Minecraft reports selected sound device string: \"{}\"", mcDevice);
+
+        // If Minecraft is set to default, return null
         //noinspection ConstantValue
-        if (mcDevice == null || mcDevice.isEmpty()) {
+        if (mcDevice == null || mcDevice.isEmpty() || mcDevice.equalsIgnoreCase("System Default") || mcDevice.contains("default")) {
+            LOGGER.info("[CUSTOM DISCS] Minecraft is set to default device. Letting Java Sound handle it.");
             return null;
         }
 
-        // OpenAL device names and Java Sound device names are slightly different,
-        // but they usually share the core hardware name. We do a partial text match.
-        for (Mixer.Info info : AudioSystem.getMixerInfo()) {
-            String javaDeviceName = info.getName();
+        // Clean up OpenAL prefixes to make matching easier
+        String cleanMcDevice = mcDevice.replace("OpenAL Soft on ", "").toLowerCase();
 
-            // We ignore "Port" mixers and look for actual audio endpoints
-            if (mcDevice.contains(javaDeviceName) || javaDeviceName.contains(mcDevice)) {
-                return info;
-            }
+        DataLine.Info playbackRequirement = new DataLine.Info(SourceDataLine.class, null);
+
+        for (Mixer.Info info : AudioSystem.getMixerInfo()) {
+            try {
+                Mixer mixer = AudioSystem.getMixer(info);
+
+                // Skip microphones, lines, and control ports
+                if (!mixer.isLineSupported(playbackRequirement)) {
+                    continue;
+                }
+
+                String javaDeviceName = info.getName().toLowerCase();
+                LOGGER.info("[CUSTOM DISCS] Checking Java Sound hardware mixer: \"{}\"", info.getName());
+
+                // Check for a partial name match
+                if (cleanMcDevice.contains(javaDeviceName) || javaDeviceName.contains(cleanMcDevice)) {
+                    LOGGER.info("[CUSTOM DISCS] MATCH FOUND! Mapping Minecraft to Java Mixer: {}", info.getName());
+                    return info;
+                }
+            } catch (Exception ignored) {}
         }
 
-        // Fallback to system default if we can't find a match
+        LOGGER.warn("[CUSTOM DISCS] Could not find a matching Java Sound mixer for: \"{}\"", mcDevice);
         return null;
     }
 }
