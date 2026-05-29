@@ -5,11 +5,15 @@ import javazoom.jl.player.AudioDevice;
 import javazoom.jl.player.JavaSoundAudioDevice;
 import javazoom.jl.player.Player;
 import org.essentials.custom_background_music.MusicMuter;
+import org.essentials.custom_background_music.TrackableInputStream; // Using your custom stream wrapper
 import dashketch.mods.custom_music_discs.client.AudioDeviceSync;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ServerData;
 
 import javax.sound.sampled.*;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.BufferedInputStream;
 import java.lang.reflect.Field;
 
 import static dashketch.mods.custom_music_discs.Custom_music_discs.LOGGER;
@@ -19,48 +23,54 @@ public class JukeboxAudioEngine {
     private Player player;
     private Thread musicThread;
     private float volume = 1.0f;
+    private TrackableInputStream trackableStream;
+
+    // Server tracking states
+    private File currentMusicFile;
+    private String lastServerIp = null;
+    private boolean isPausedByDisconnect = false;
+
+    // Your stream-based pause variables
+    private long pauseLocation = 0;
 
     public static JukeboxAudioEngine getInstance() {
         return INSTANCE;
+    }
+
+    private String getCurrentServerAddress() {
+        ServerData serverData = Minecraft.getInstance().getCurrentServer();
+        if (serverData != null) {
+            return serverData.ip;
+        }
+        if (Minecraft.getInstance().isLocalServer()) {
+            return "singleplayer";
+        }
+        return "none";
     }
 
     private AudioDevice createSyncedDevice() {
         return new JavaSoundAudioDevice() {
             @Override
             protected void createSource() throws JavaLayerException {
-                // 1. Let JLayer run its default setup so all internal states/buffers are fully initialized
                 super.createSource();
-
                 try {
                     Mixer.Info mixerInfo = AudioDeviceSync.getMinecraftSelectedMixer();
+                    if (mixerInfo == null) return;
 
-                    // Check if system defualt device
-                    if (mixerInfo == null) {
-                        return;
-                    }
-
-                    LOGGER.info("[CUSTOM DISCS] Intercepting pipeline for hardware mixer: {}", mixerInfo.getName());
-
-                    // 2. Grab JLayer's internal private 'source' field using reflection
                     Field sourceField = JavaSoundAudioDevice.class.getDeclaredField("source");
                     sourceField.setAccessible(true);
                     SourceDataLine defaultLine = (SourceDataLine) sourceField.get(this);
 
-                    // 3. Grab JLayer's internal format
                     AudioFormat fmt = getAudioFormat();
                     DataLine.Info info = new DataLine.Info(SourceDataLine.class, fmt);
                     Mixer mixer = AudioSystem.getMixer(mixerInfo);
 
                     if (mixer != null && mixer.isLineSupported(info)) {
-                        // Close the default system line before swapping
                         if (defaultLine != null) {
                             try { defaultLine.close(); } catch (Exception ignored) {}
                         }
 
-                        // Open the new hardware line using the buffer size JLayer calculated
                         SourceDataLine hardwareLine = (SourceDataLine) mixer.getLine(info);
-
-                        // Pull the calculated buffer size directly from the old line properties if available
                         int bufferSize = (defaultLine != null) ? defaultLine.getBufferSize() : AudioSystem.NOT_SPECIFIED;
 
                         if (bufferSize > 0) {
@@ -68,73 +78,118 @@ public class JukeboxAudioEngine {
                         } else {
                             hardwareLine.open(fmt);
                         }
-
                         hardwareLine.start();
 
-                        // 4. Inject the hardware-bound line back into JLayer
                         sourceField.set(this, hardwareLine);
-                        LOGGER.info("[CUSTOM DISCS] Audio pipeline cleanly bound to hardware device.");
-                    } else {
-                        LOGGER.warn("[CUSTOM DISCS] Target mixer does not support this format. Keeping default line.");
                     }
-
                 } catch (Exception e) {
-                    LOGGER.error("[CUSTOM DISCS] Hardware routing failed, staying on default engine track.", e);
+                    LOGGER.error("[CUSTOM DISCS] Hardware routing failed.", e);
                 }
             }
         };
     }
 
-    public void play(File musicFile) {
+    public synchronized void play(File musicFile) {
+        if (musicFile == null || !musicFile.exists() || isPlaying()) return;
+
+        this.currentMusicFile = musicFile;
+        this.lastServerIp = getCurrentServerAddress();
+
         try {
             MusicMuter.muteMinecraftMusic();
         } catch (Exception e) {
-            LOGGER.warn("Could not mute the music!", e);
-            return;
+            LOGGER.warn("Could not mute vanilla music!", e);
         }
 
-        stop();
-
-        if (musicFile == null || !musicFile.exists()) {
-            LOGGER.warn("[CUSTOM DISCS FATAL] File missing or null!");
-            return;
-        }
-
-        LOGGER.info("[CUSTOM DISCS] Starting thread for: {}", musicFile.getName());
+        stopPlaybackThreads();
 
         musicThread = new Thread(() -> {
             try (FileInputStream fis = new FileInputStream(musicFile)) {
-                AudioDevice customDevice = createSyncedDevice();
-                player = new javazoom.jl.player.Player(new java.io.BufferedInputStream(fis), customDevice);
+                // Apply your pause location byte skipping logic
+                if (pauseLocation > 0) {
+                    long skipped = fis.skip(pauseLocation);
+                    if (skipped < pauseLocation) pauseLocation = skipped;
+                }
 
-                setVolume(volume);
+                trackableStream = new TrackableInputStream(new BufferedInputStream(fis));
+                AudioDevice customDevice = createSyncedDevice();
+
+                player = new Player(trackableStream, customDevice);
+                isPausedByDisconnect = false;
+
+                setVolume(this.volume);
                 player.play();
+
+                if (player != null && player.isComplete()) {
+                    stop();
+                }
             } catch (Exception e) {
-                LOGGER.warn("[CUSTOM DISCS] Playback failed: {}", e.getMessage());
+                LOGGER.warn("[CUSTOM DISCS] Audio stream closed or ended.");
             }
         });
         musicThread.setDaemon(true);
         musicThread.start();
     }
 
-    public void stop() {
+    // Leverages your exact pause location logic on disconnect
+    public synchronized void onPlayerDisconnect() {
+        if (isPlaying()) {
+            LOGGER.info("[CUSTOM DISCS] Player disconnected. Storing byte offset marker.");
+
+            this.isPausedByDisconnect = true;
+
+            if (trackableStream != null) {
+                this.pauseLocation += trackableStream.getBytesRead();
+            }
+
+            stopPlaybackThreads();
+            MusicMuter.unmuteMinecraftMusic();
+        }
+    }
+
+    public void onPlayerReconnect() {
+        String currentServer = getCurrentServerAddress();
+
+        if (isPausedByDisconnect && currentMusicFile != null && currentMusicFile.exists()) {
+            if (currentServer.equals(lastServerIp)) {
+                LOGGER.info("[CUSTOM DISCS] Reconnected to same server. Resuming track via byte-offset.");
+                play(currentMusicFile);
+            } else {
+                resetEngineCache();
+            }
+        } else {
+            resetEngineCache();
+        }
+    }
+
+    private void stopPlaybackThreads() {
         if (player != null) {
             player.close();
             player = null;
         }
+        trackableStream = null;
         if (musicThread != null) {
             musicThread.interrupt();
             musicThread = null;
         }
+    }
+
+    public synchronized void stop() {
+        stopPlaybackThreads();
+        resetEngineCache();
         MusicMuter.unmuteMinecraftMusic();
     }
 
-    public boolean isPlaying() {
-        return musicThread != null && musicThread.isAlive();
+    private void resetEngineCache() {
+        this.currentMusicFile = null;
+        this.lastServerIp = null;
+        this.isPausedByDisconnect = false;
+        this.pauseLocation = 0; // Wipe the byte pointer
     }
 
-    @SuppressWarnings("unused")
-    public float getVolume() { return this.volume; }
+    public boolean isPlaying() {
+        return player != null && musicThread != null && musicThread.isAlive() && !isPausedByDisconnect;
+    }
 
     public void setVolume(float targetVolume) {
         this.volume = Math.clamp(targetVolume, 0.0f, 1.0f);
