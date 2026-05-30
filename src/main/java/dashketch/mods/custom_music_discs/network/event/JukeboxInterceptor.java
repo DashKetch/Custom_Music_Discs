@@ -26,9 +26,10 @@ import org.essentials.custom_background_music.AudioManager;
 import java.io.File;
 
 import static dashketch.mods.custom_music_discs.Custom_music_discs.LOGGER;
+import static dashketch.mods.custom_music_discs.Custom_music_discs.MODID;
 import static dashketch.mods.custom_music_discs.client.override.volume_slider.getJukeboxVolume;
 
-@EventBusSubscriber(modid = "custom_music_discs", bus = EventBusSubscriber.Bus.GAME)
+@EventBusSubscriber(modid = MODID, bus = EventBusSubscriber.Bus.GAME)
 public class JukeboxInterceptor {
     static JukeboxAudioEngine engine = JukeboxAudioEngine.getInstance();
     static AudioManager am = AudioManager.getInstance();
