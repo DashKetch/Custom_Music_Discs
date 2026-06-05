@@ -131,7 +131,7 @@ public class JukeboxAudioEngine {
         musicThread.start();
     }
 
-    // Leverages your exact pause location logic on disconnect
+    // Leverages player's exact pause location logic on disconnect
     public synchronized void onPlayerDisconnect() {
         if (isPlaying()) {
             LOGGER.info("[CUSTOM DISCS] Player disconnected. Storing byte offset marker.");
