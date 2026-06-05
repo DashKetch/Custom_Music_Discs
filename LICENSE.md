@@ -1,6 +1,6 @@
 # Custom Source-Available License
 
-Copyright (c) 2026 Dash_Ketch (Nate Askew)
+Copyright &copy; 2026 Dash_Ketch (Nate Askew)
 
 All rights reserved.
 
@@ -59,3 +59,5 @@ IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY CLAIM, 
 ## 8. Acceptance
 
 By using, copying, modifying, or distributing the Software, you agree to be bound by the terms of this License.
+
+#### This project's &copy; is self declared, but still valid
