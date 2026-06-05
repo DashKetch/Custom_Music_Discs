@@ -5,7 +5,7 @@ import javazoom.jl.player.AudioDevice;
 import javazoom.jl.player.JavaSoundAudioDevice;
 import javazoom.jl.player.Player;
 import org.essentials.custom_background_music.MusicMuter;
-import org.essentials.custom_background_music.TrackableInputStream; // Using your custom stream wrapper
+import org.essentials.custom_background_music.TrackableInputStream;
 import dashketch.mods.custom_music_discs.client.AudioDeviceSync;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ServerData;
@@ -131,7 +131,7 @@ public class JukeboxAudioEngine {
         musicThread.start();
     }
 
-    // Leverages your exact pause location logic on disconnect
+    // Leverages player's exact pause location logic on disconnect
     public synchronized void onPlayerDisconnect() {
         if (isPlaying()) {
             LOGGER.info("[CUSTOM DISCS] Player disconnected. Storing byte offset marker.");
