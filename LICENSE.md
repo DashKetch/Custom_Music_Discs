@@ -32,7 +32,7 @@ Any individual, organization, or business seeking commercial use rights must fir
 
 Commercial licensing inquiries should be made through the following Discord server:
 
-https://discord.gg/gEjJwKk8gs
+https://discord.gg/QW2ruJXPNR
 
 The copyright holder reserves the right to approve, deny, or negotiate any commercial licensing request at their sole discretion.
 
